@@ -40,19 +40,49 @@ class TCPClient:
                         content = parts[2]
                         print(f"\n[Client {sender_id} → You]: {content}")
                         print("You: ", end="", flush=True)
-                        
+
                 elif message.startswith("CLIENTS:"):
                     # Format: CLIENTS:1,2,3,4
                     client_list = message.split(":", 1)[1]
                     print(f"\n[Server]: Connected clients: {client_list}")
                     print("You: ", end="", flush=True)
-                    
+
+                elif message.startswith("SENT:"):
+                    # Format: SENT:confirmation message
+                    confirm_msg = message.split(":", 1)[1]
+                    print(f"\n[Server]: {confirm_msg}")
+                    print("You: ", end="", flush=True)
+
+                elif message.startswith("SUCCESS:"):
+                    # Format: SUCCESS:success message
+                    success_msg = message.split(":", 1)[1]
+                    print(f"\n[Server Success]: {success_msg}")
+                    print("You: ", end="", flush=True)
+
+                elif message.startswith("STATS:"):
+                    # Format: STATS:key=value,key=value
+                    stats = message.split(":", 1)[1]
+                    print(f"\n[Message Stats]: {stats}")
+                    print("You: ", end="", flush=True)
+
+                elif message.startswith("MESSAGES:"):
+                    # Format: MESSAGES:msg1;msg2;msg3
+                    msg_data = message.split(":", 1)[1]
+                    if msg_data == "No messages found":
+                        print(f"\n[Server]: No messages found")
+                    else:
+                        messages = msg_data.split(";")
+                        print(f"\n[Your Messages]:")
+                        for msg in messages:
+                            print(f"  - {msg}")
+                    print("You: ", end="", flush=True)
+
                 elif message.startswith("ERROR:"):
                     # Format: ERROR:message
                     error_msg = message.split(":", 1)[1]
                     print(f"\n[Server Error]: {error_msg}")
                     print("You: ", end="", flush=True)
-                    
+
                 else:
                     # Unknown message format
                     print(f"\n[Server]: {message}")
@@ -69,13 +99,22 @@ class TCPClient:
     
     def send_messages(self):
         """Take user input and send to server"""
-        print("\n" + "="*60)
-        print("COMMANDS:")
-        print("  SEND:<client_id>:<message>    - Send to specific client")
-        print("  BROADCAST:<message>            - Send to all clients")
-        print("  LIST                           - Get list of connected clients")
-        print("  quit/exit                      - Disconnect")
-        print("="*60 + "\n")
+        print("\n" + "="*70)
+        print("MESSAGING COMMANDS:")
+        print("  SEND:<client_id>:<message>     - Send to specific client")
+        print("  BROADCAST:<message>             - Send to all clients")
+        print("  LIST                            - Get list of connected clients")
+        print("\nMESSAGE MANAGEMENT:")
+        print("  MSG_LIST                        - List your messages")
+        print("  MSG_STATS                       - Get message storage stats")
+        print("  DELETE_MSG:<message_id>         - Delete specific message")
+        print("  DELETE_CLIENT:<client_id>       - Delete all messages for a client")
+        print("  DELETE_ALL                      - Clear all stored messages")
+        print("\nOTHER:")
+        print("  quit/exit                       - Disconnect")
+        print("="*70)
+        print("NOTE: Messages auto-delete after 2 minutes")
+        print("="*70 + "\n")
         
         while self.running:
             try:
