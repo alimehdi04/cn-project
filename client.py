@@ -1,6 +1,7 @@
 import socket
 import threading
 import sys
+import signal
 
 class TCPClient:
     def __init__(self, host='127.0.0.1', port=5000):
@@ -40,81 +41,45 @@ class TCPClient:
                         content = parts[2]
                         print(f"\n[Client {sender_id} → You]: {content}")
                         print("You: ", end="", flush=True)
-
+                        
                 elif message.startswith("CLIENTS:"):
                     # Format: CLIENTS:1,2,3,4
                     client_list = message.split(":", 1)[1]
                     print(f"\n[Server]: Connected clients: {client_list}")
                     print("You: ", end="", flush=True)
-
-                elif message.startswith("SENT:"):
-                    # Format: SENT:confirmation message
-                    confirm_msg = message.split(":", 1)[1]
-                    print(f"\n[Server]: {confirm_msg}")
-                    print("You: ", end="", flush=True)
-
-                elif message.startswith("SUCCESS:"):
-                    # Format: SUCCESS:success message
-                    success_msg = message.split(":", 1)[1]
-                    print(f"\n[Server Success]: {success_msg}")
-                    print("You: ", end="", flush=True)
-
-                elif message.startswith("STATS:"):
-                    # Format: STATS:key=value,key=value
-                    stats = message.split(":", 1)[1]
-                    print(f"\n[Message Stats]: {stats}")
-                    print("You: ", end="", flush=True)
-
-                elif message.startswith("MESSAGES:"):
-                    # Format: MESSAGES:msg1;msg2;msg3
-                    msg_data = message.split(":", 1)[1]
-                    if msg_data == "No messages found":
-                        print(f"\n[Server]: No messages found")
-                    else:
-                        messages = msg_data.split(";")
-                        print(f"\n[Your Messages]:")
-                        for msg in messages:
-                            print(f"  - {msg}")
-                    print("You: ", end="", flush=True)
-
+                    
                 elif message.startswith("ERROR:"):
                     # Format: ERROR:message
                     error_msg = message.split(":", 1)[1]
                     print(f"\n[Server Error]: {error_msg}")
                     print("You: ", end="", flush=True)
-
+                    
                 else:
                     # Unknown message format
                     print(f"\n[Server]: {message}")
                     print("You: ", end="", flush=True)
                     
-            except ConnectionResetError:
-                print("\n✗ Connection lost")
-                self.running = False
+            except (ConnectionResetError, BrokenPipeError, OSError):
+                if self.running:
+                    print("\n✗ Connection lost")
+                    self.running = False
                 break
             except Exception as e:
                 if self.running:
                     print(f"\n✗ Error receiving message: {e}")
+                    self.running = False
                 break
     
     def send_messages(self):
         """Take user input and send to server"""
-        print("\n" + "="*70)
-        print("MESSAGING COMMANDS:")
-        print("  SEND:<client_id>:<message>     - Send to specific client")
-        print("  BROADCAST:<message>             - Send to all clients")
-        print("  LIST                            - Get list of connected clients")
-        print("\nMESSAGE MANAGEMENT:")
-        print("  MSG_LIST                        - List your messages")
-        print("  MSG_STATS                       - Get message storage stats")
-        print("  DELETE_MSG:<message_id>         - Delete specific message")
-        print("  DELETE_CLIENT:<client_id>       - Delete all messages for a client")
-        print("  DELETE_ALL                      - Clear all stored messages")
-        print("\nOTHER:")
-        print("  quit/exit                       - Disconnect")
-        print("="*70)
-        print("NOTE: Messages auto-delete after 2 minutes")
-        print("="*70 + "\n")
+        print("\n" + "="*60)
+        print("COMMANDS:")
+        print("  SEND:<client_id>:<message>    - Send to specific client")
+        print("  BROADCAST:<message>            - Send to all clients")
+        print("  LIST                           - Get list of connected clients")
+        print("  quit/exit                      - Disconnect")
+        print("  Ctrl+C                         - Force disconnect")
+        print("="*60 + "\n")
         
         while self.running:
             try:
@@ -129,12 +94,25 @@ class TCPClient:
                     self.client_socket.send(message.encode('utf-8'))
                     
             except KeyboardInterrupt:
-                print("\n\nDisconnecting...")
+                # Handle Ctrl+C gracefully
+                print("\n\n[Interrupted] Disconnecting...")
+                self.running = False
+                break
+            except (BrokenPipeError, OSError):
+                # Connection already closed
+                if self.running:
+                    print("\n✗ Connection lost")
+                    self.running = False
+                break
+            except EOFError:
+                # Handle Ctrl+D (EOF)
+                print("\n[EOF] Disconnecting...")
                 self.running = False
                 break
             except Exception as e:
                 if self.running:
-                    print(f"✗ Error sending message: {e}")
+                    print(f"\n✗ Error sending message: {e}")
+                    self.running = False
                 break
     
     def start(self):
@@ -142,9 +120,12 @@ class TCPClient:
         if not self.connect_to_server():
             return
         
+        # Set up signal handler for Ctrl+C
+        signal.signal(signal.SIGINT, self.signal_handler)
+        
         # Create threads for sending and receiving
         receive_thread = threading.Thread(target=self.receive_messages, daemon=True)
-        send_thread = threading.Thread(target=self.send_messages, daemon=True)
+        send_thread = threading.Thread(target=self.send_messages)
         
         # Start both threads
         receive_thread.start()
@@ -156,15 +137,31 @@ class TCPClient:
         # Cleanup
         self.close()
     
+    def signal_handler(self, signum, frame):
+        """Handle Ctrl+C signal"""
+        print("\n\n[Signal] Received interrupt signal. Shutting down...")
+        self.running = False
+        # Force exit after cleanup
+        try:
+            self.client_socket.close()
+        except:
+            pass
+        sys.exit(0)
+    
     def close(self):
         """Close the connection"""
+        self.running = False
         try:
-            self.running = False
+            # Shutdown socket to unblock any receive operations
+            self.client_socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        
+        try:
             self.client_socket.close()
             print("✓ Disconnected from server")
         except:
             pass
-        sys.exit(0)
 
 
 def main():
@@ -176,9 +173,16 @@ def main():
     print("TCP CLIENT - Multi-Client Chat System")
     print("="*60)
     
-    # Create and start client
-    client = TCPClient(HOST, PORT)
-    client.start()
+    try:
+        # Create and start client
+        client = TCPClient(HOST, PORT)
+        client.start()
+    except KeyboardInterrupt:
+        print("\n\n[Interrupted] Exiting...")
+        sys.exit(0)
+    except Exception as e:
+        print(f"\n✗ Unexpected error: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
