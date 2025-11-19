@@ -166,7 +166,7 @@ class TCPClient:
 
 def main():
     # Server configuration
-    HOST = '127.0.0.1'  # Change to server IP if on different machine
+    HOST = '127.0.0.1'  # Replace with server's LAN IP (e.g., 192.168.x.x)
     PORT = 5000         # Must match server port
     
     print("="*60)

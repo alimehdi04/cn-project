@@ -111,13 +111,64 @@ The implementation has been done in **Python**, using socket programming to hand
 
 ## How to Run
 
-### 1. Start the Server
+### Running on Multiple Machines (LAN Setup)
+
+#### Step 1: Connect All Machines to Same WiFi
+Ensure all 4 systems are connected to the same WiFi network.
+
+#### Step 2: Start the Server
+On the **server machine**, run:
 ```bash
 python server.py
 ```
 
-### 2. Start Clients (16 clients for 4 systems)
-Open 16 separate terminals and run in each:
+The server will display its IP and port. Example output:
+```
+[SERVER STARTED] Listening on 0.0.0.0:5000
+```
+
+#### Step 3: Find Server's LAN IP Address
+On the server machine, get the LAN IP:
+
+**Linux/Mac:**
+```bash
+hostname -I
+# or
+ip addr show
+```
+
+**Windows:**
+```bash
+ipconfig
+```
+
+Look for an address like `192.168.x.x` or `10.x.x.x`
+
+#### Step 4: Update Client Configuration
+On **each client machine**, edit `client.py` line 169:
+```python
+HOST = '192.168.x.x'  # Replace with server's actual LAN IP
+```
+
+#### Step 5: Start Clients (4 per machine)
+On each of the 4 machines, open 4 terminals and run:
+```bash
+python client.py
+```
+
+This gives you 16 total clients across 4 systems.
+
+---
+
+### Running Locally (Single Machine)
+If testing on one machine, keep `HOST = '127.0.0.1'` in both files and run:
+
+**Terminal 1:**
+```bash
+python server.py
+```
+
+**Terminals 2-17 (16 clients):**
 ```bash
 python client.py
 ```

@@ -3,7 +3,7 @@ import threading
 from server_utils import send_to_client, broadcast, get_client_list
 from message_manager import MessageManager
 
-HOST = '127.0.0.1'
+HOST = '0.0.0.0'  # Accept connections from all network interfaces
 PORT = 5000
 
 clients = {}
