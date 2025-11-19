@@ -10,7 +10,7 @@ clients = {}
 client_counter = 0
 clients_lock = threading.Lock()
 
-# Initialize message manager (auto-delete every 10s, TTL 2 minutes)
+
 message_manager = MessageManager(auto_delete_interval=10, message_ttl=120)
 
 def handle_client(client_socket, client_id):
@@ -32,7 +32,7 @@ def handle_client(client_socket, client_id):
                     try:
                         target_id = int(parts[1])
                         content = parts[2]
-                        # Store message before sending
+                      
                         msg_id = message_manager.store_message(client_id, target_id, content)
                         send_to_client(clients, clients_lock, target_id, f"MSG:{client_id}:{content}")
                         send_to_client(clients, clients_lock, client_id, f"SENT:Message stored (ID:{msg_id})")
@@ -42,14 +42,15 @@ def handle_client(client_socket, client_id):
 
             elif message.startswith("BROADCAST:"):
                 content = message.split(":", 1)[1]
-                # Store broadcast message for all clients
+                
                 client_list = get_client_list(clients, clients_lock)
                 for target_id in client_list:
                     if target_id != client_id:
                         message_manager.store_message(client_id, target_id, content)
                 broadcast(clients, clients_lock, f"MSG:{client_id}:{content}", exclude_id=client_id)
                 print(f"[BROADCAST] Client {client_id} to all")
-
+            elif message.lower() in ["quit", "exit", "disconnect"]:
+                break
             elif message == "LIST":
                 client_list = get_client_list(clients, clients_lock)
                 clients_str = ",".join(map(str, client_list))
@@ -57,7 +58,7 @@ def handle_client(client_socket, client_id):
                 print(f"[LIST] Sent to Client {client_id}: {clients_str}")
 
             elif message.startswith("DELETE_MSG:"):
-                # Delete specific message by ID
+               
                 try:
                     msg_id = int(message.split(":", 1)[1])
                     if message_manager.delete_message(msg_id):
@@ -68,7 +69,7 @@ def handle_client(client_socket, client_id):
                     send_to_client(clients, clients_lock, client_id, "ERROR:Invalid message ID")
 
             elif message.startswith("DELETE_CLIENT:"):
-                # Delete all messages for a specific client
+               
                 try:
                     target_id = int(message.split(":", 1)[1])
                     count = message_manager.delete_client_messages(target_id)
@@ -118,12 +119,19 @@ server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind((HOST, PORT))
 server_socket.listen(5)
 
+server_socket.settimeout(1.0)
+
 print(f"[SERVER STARTED] Listening on {HOST}:{PORT}")
 print(f"[INFO] Waiting for client connections...")
 
 try:
     while True:
-        client_socket, address = server_socket.accept()
+        try :
+            client_socket, address = server_socket.accept()
+
+        except socket.timeout:
+            
+            continue
 
         with clients_lock:
             client_counter += 1
